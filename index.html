@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mediafire bulk importer</title>
+  <meta charset="utf-8">
+  <style>
+
+body > div {
+  width: 50%;
+  display: inline-block;
+  vertical-align: top;
+}
+.red { color: red }
+textarea {
+  width: 95%;
+  height: 200px;
+}
+
+  </style>
+</head>
+<body>
+
+<div>
+  <div id="logform">
+    Login:<br><input type="text" name="login" id="login"><br>
+    Password:<br><input type="password" name="password" id="password"><br>
+    <button id="login-btn">Log in</button>
+  </div>
+
+  <div id="linkform" style="display: none">
+    <textarea id="links"></textarea><br>
+    <button id="upload-btn">Copy to my account</button>
+  </div>
+</div><div id="log"></div>
+
+  <script src="mediafire.js"></script>
+  <script>
+
+const _log = (message, error) => {
+  const d = document.createElement("div");
+  d.innerHTML = message;
+  if(error)
+    d.classList.add("red");
+  document.querySelector("#log").appendChild(d);
+};
+const log = message => _log(message, false);
+const error = message => _log(message, true);
+
+const asyncAPI = async (path, options) => new Promise((resolve, reject) => {
+  app.api(path, options, {success: resolve, error: reject});
+});
+
+const app = new MF(42709);
+
+document.querySelector("#login-btn").addEventListener("click", function(e) {
+  e.preventDefault();
+
+  const credentials = {
+    email: document.querySelector("#login").value,
+    password: document.querySelector("#password").value
+  };
+
+  app.login(credentials, {
+    success: result => {
+      console.log(result);
+      document.querySelector("#logform").style.display = "none";
+      document.querySelector("#linkform").style.display = "block";
+      log("Logged in!")
+    },
+    error: result => {
+      console.error(result);
+      error(result.response.message);
+    }
+  });
+}, false);
+
+document.querySelector("#upload-btn").addEventListener("click", async e => {
+  e.preventDefault();
+
+  for(const x of document.querySelector("#links").value.matchAll(/\bhttps?:\/\/(?:www\.)?mediafire\.com\/file\/(?<quickKey>[^\/\b\r\n]+)(?:\/|\b|\r|\n)/g)){
+    const quickKey = x.groups.quickKey;
+    let result;
+    try {
+      result = await asyncAPI('file/get_info', {quick_key: quickKey});
+    } catch (err) {
+      console.error(err);
+      error(`[${quickKey}] ${err.response.message}`);
+      break;
+    }
+
+    const {filename, size, hash} = result.response.file_info;
+
+    try {
+      result = await asyncAPI('upload/instant', {filename: filename, size: size, hash: hash});
+    } catch (err) {
+      console.error(err);
+      error(`[${quickKey}] ${err.response.message}`);
+      break;
+    }
+
+    log(`Added ${filename}`);
+  }
+}, false);
+
+  </script>
+</body>
+</html>
