@@ -104,8 +104,17 @@ document.querySelector("#upload-btn").addEventListener("click", async e => {
       error(`[${quickKey}] ${err.response.message}`);
       break;
     }
+    const newQuickKey = result.response.quickkey;
 
-    log(`Added ${filename}`);
+    try {
+      result = await asyncAPI('file/update', {quick_key: newQuickKey, privacy: 'private'});
+    } catch (err) {
+      console.error(err);
+      error(`[${newQuickKey}] ${err.response.message}`);
+      break;
+    } finally {
+      log(`Added <a href="https://www.mediafire.com/file/${newQuickKey}/">${filename}</a>`);
+    }
   }
 }, false);
 
