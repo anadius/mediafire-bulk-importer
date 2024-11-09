@@ -114,7 +114,7 @@ document.querySelector("#upload-btn").addEventListener("click", async e => {
     try {
       result = await asyncAPI('upload/instant', {filename: filename, size: size, hash: hash});
     } catch (err) {
-      if(result.response.error === 129 && quickKey === null) {
+      if(err.response.error === 129 && quickKey === null) {
         error(`${filename} with given size and hash not found on Mediafire servers!`);
         continue;
       }
