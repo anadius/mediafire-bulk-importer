@@ -35,7 +35,9 @@ header {
   </form>
 
   <div id="linkform" style="display: none">
+    <div>Enter links or <code>filename;filesize;MD5_hash</code>:</div>
     <textarea id="links"></textarea><br>
+    <label><input type="checkbox" id="private"> Mark as private</label><br>
     <button id="upload-btn">Copy to my account</button>
   </div>
 </div><div id="log"></div>
@@ -84,18 +86,30 @@ document.querySelector("#login-btn").addEventListener("click", function(e) {
 document.querySelector("#upload-btn").addEventListener("click", async e => {
   e.preventDefault();
 
-  for(const x of document.querySelector("#links").value.matchAll(/\bhttps?:\/\/(?:www\.)?mediafire\.com\/file\/(?<quickKey>[^\/\b\r\n]+)(?:\/|\b|\r|\n)/g)){
-    const quickKey = x.groups.quickKey;
-    let result;
-    try {
-      result = await asyncAPI('file/get_info', {quick_key: quickKey});
-    } catch (err) {
-      console.error(err);
-      error(`[${quickKey}] ${err.response.message}`);
-      break;
-    }
+  for(let line of document.querySelector("#links").value.split(/\r?\n/)){
+    let filename, size, hash, result;
+    line = line.trim();
 
-    const {filename, size, hash} = result.response.file_info;
+    let x = line.match(/^(?<filename>.+?);(?<size>\d+);(?<hash>[a-zA-Z0-9]+)$/);
+    if(x !== null) {
+      ({filename, size, hash} = x.groups);
+    } else {
+      x = line.match(/^https?:\/\/(?:www\.)?mediafire\.com\/file\/(?<quickKey>[a-zA-Z0-9]+)/);
+      if(x === null) {
+        console.log(`Skipping line: ${line}`);
+        continue;
+      }
+      const quickKey = x.groups.quickKey;
+      try {
+        result = await asyncAPI('file/get_info', {quick_key: quickKey});
+      } catch (err) {
+        console.error(err);
+        error(`[${quickKey}] ${err.response.message}`);
+        break;
+      }
+
+      ({filename, size, hash} = result.response.file_info);
+    }
 
     try {
       result = await asyncAPI('upload/instant', {filename: filename, size: size, hash: hash});
@@ -105,9 +119,15 @@ document.querySelector("#upload-btn").addEventListener("click", async e => {
       break;
     }
     const newQuickKey = result.response.quickkey;
+    if(result.response.result === "Success" && typeof newQuickKey === "undefined") {
+      log(`${filename} already in your account!`);
+      continue;
+    }
 
     try {
-      result = await asyncAPI('file/update', {quick_key: newQuickKey, privacy: 'private'});
+      if(document.querySelector("#private").checked) {
+        result = await asyncAPI('file/update', {quick_key: newQuickKey, privacy: 'private'});
+      }
     } catch (err) {
       console.error(err);
       error(`[${newQuickKey}] ${err.response.message}`);
